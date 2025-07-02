@@ -9,20 +9,24 @@ export const useAppScreenLogic = (user, isAdmin) => {
   useEffect(() => {
     if (!user || !user.id || isAdmin) return;
 
-    if (user.is_approved) {
-        const lastSeen = user.last_news_seen_at;
-        const twentyFourHours = 24 * 60 * 60 * 1000;
+    // Só mostra a tela de novidades se o vídeo de boas-vindas já foi visto
+    if (user.is_approved && user.has_seen_welcome) {
+      const lastSeen = user.last_news_seen_at;
+      const twentyFourHours = 24 * 60 * 60 * 1000;
 
-        if (!lastSeen || Date.now() - new Date(lastSeen).getTime() > twentyFourHours) {
-            setShowNewsScreen(true);
-        }
+      // Se nunca viu ou já passou 24h desde a última vez
+      if (!lastSeen || Date.now() - new Date(lastSeen).getTime() > twentyFourHours) {
+        // Delayzinho pra evitar sobrepor com a animação do login
+        setTimeout(() => {
+          setShowNewsScreen(true);
+        }, 300);
+      }
     }
-    
   }, [user, isAdmin]);
 
   const handleCloseNewsScreen = () => {
     if (user && user.id) {
-        updateProfile(user.id, { 'last_news_seen_at': new Date().toISOString() });
+      updateProfile(user.id, { last_news_seen_at: new Date().toISOString() });
     }
     setShowNewsScreen(false);
   };

@@ -127,7 +127,14 @@ function App() {
     if (!user.has_scheduled_initial_chat) return <SchedulingScreen user={user} onScheduled={handleSchedulingComplete} onCancel={() => {}} />;
     if (!user.has_completed_anamnesis) return <AnamnesisForm user={user} onComplete={handleAnamnesisComplete} />;
     if (!user.is_approved) return <PostSchedulingWaitScreen user={user} onLogout={handleLogout} />;
-    if (showNewsScreen) return <NewsScreen user={user} onClose={handleCloseNewsScreen} />;
+    if (
+  user.has_seen_welcome &&
+  user.has_scheduled_initial_chat &&
+  user.has_completed_anamnesis &&
+  user.is_approved
+) {
+  return <NewsScreen user={user} onClose={handleCloseNewsScreen} />;
+}
     
     return <Dashboard user={user} onLogout={handleLogout} />;
   };
