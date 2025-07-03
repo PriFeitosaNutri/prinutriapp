@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppScreenLogic } from '@/hooks/useAppScreenLogic';
 import WelcomeScreen from '@/components/WelcomeScreen';
-import AnamnesisScreen from '@/components/AnamnesisScreen';
+import AnamnesisForm from '@/components/AnamnesisForm';
 import SchedulingScreen from '@/components/SchedulingScreen.jsx';
 import NewsScreen from '@/components/NewsScreen';
 import Dashboard from '@/components/Dashboard';
