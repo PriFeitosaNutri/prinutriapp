@@ -1,5 +1,5 @@
 import React from 'react';
-import { useUser } from '@/hooks/useUser';
+import { useUser } from '@/hooks/useUser.jsx';
 import { useAppScreenLogic } from '@/hooks/useAppScreenLogic';
 import WelcomeScreen from '@/components/WelcomeScreen';
 import AnamnesisScreen from '@/components/AnamnesisScreen';

@@ -35,8 +35,8 @@ const WelcomeScreen = ({ user, onContinue }) => {
     fetchVideoUrl();
   }, [fetchVideoUrl]);
 
-  const handleScheduleChat = () => {
-    onContinue(true);
+ const handleScheduleChat = () => {
+  onContinue(); //
   };
 
   return (
