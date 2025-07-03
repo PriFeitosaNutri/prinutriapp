@@ -3,7 +3,7 @@ import { useUser } from '@/hooks/useUser';
 import { useAppScreenLogic } from '@/hooks/useAppScreenLogic';
 import WelcomeScreen from '@/components/WelcomeScreen';
 import AnamnesisScreen from '@/components/AnamnesisScreen';
-import ChatSchedulerScreen from '@/components/ChatSchedulerScreen';
+import SchedulingScreen from '@/components/SchedulingScreen.jsx';
 import NewsScreen from '@/components/NewsScreen';
 import Dashboard from '@/components/Dashboard';
 import LoadingScreen from '@/components/LoadingScreen';
@@ -46,7 +46,7 @@ const App = () => {
   }
 
   if (!user.has_scheduled_initial_chat) {
-    return <ChatSchedulerScreen user={user} />;
+    return <SchedulingScreen user={user} />;
   }
 
   if (!user.has_completed_anamnesis) {
