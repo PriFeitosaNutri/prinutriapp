@@ -1,0 +1,27 @@
+{
+  "name": "PriNutriApp",
+  "short_name": "PriNutriApp",
+  "description": "Seu plano nutricional personalizado",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F0FDF4",
+  "theme_color": "#166534",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "https://storage.googleapis.com/hostinger-horizons-assets-prod/b9d04e3e-a936-445c-b4df-9d7bf5f8a549/f8dd30adc882d4ed11ff868ab80042d9.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://storage.googleapis.com/hostinger-horizons-assets-prod/b9d04e3e-a936-445c-b4df-9d7bf5f8a549/f8dd30adc882d4ed11ff868ab80042d9.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["health", "lifestyle", "nutrition"],
+  "lang": "pt-BR",
+  "prefer_related_applications": false
+}

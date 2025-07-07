@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { 
+import {
   FileText, ArrowLeft, Loader2, Smile, Brain, Utensils, Salad, PenSquare, Award
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { getPatientDetails, updateProfile, getPatientRecord, updatePatientRecord } from '@/lib/database';
+import { getPatientDetails, updateProfile, getPatientRecord, updatePatientRecord, addMessageToChat, getChatMessages } from '@/lib/database';
 import PatientRecordCard from '@/components/admin/details/PatientRecordCard';
 import ProgressCards from '@/components/admin/details/ProgressCards';
 import ContentManagementCard from '@/components/admin/details/ContentManagementCard';
@@ -24,11 +23,11 @@ const PatientDetailsView = ({ patient, onClose }) => {
   const [newMessage, setNewMessage] = useState('');
   const [progressNotes, setProgressNotes] = useState('');
   const [crnNumber, setCrnNumber] = useState('');
-  const [editableMetrics, setEditableMetrics] = useState({ 
-    imc: '', 
-    tmb: '', 
-    get: '', 
-    deficitCalories: '' 
+  const [editableMetrics, setEditableMetrics] = useState({
+    imc: '',
+    tmb: '',
+    get: '',
+    deficitCalories: ''
   });
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -47,7 +46,9 @@ const PatientDetailsView = ({ patient, onClose }) => {
         setShoppingList(details.shopping_list?.join('\n') || '');
         setMealPlan(details.meal_plan || '');
         setMaterials(details.materials || []); 
-        setMessages(details.messages || []);
+        // Fetch messages from Supabase
+        const chatMessages = await getChatMessages(patient.id);
+        setMessages(chatMessages);
         setEditableMetrics({
           imc: details.manual_metrics?.imc || '',
           tmb: details.manual_metrics?.tmb || '',
@@ -173,12 +174,24 @@ const PatientDetailsView = ({ patient, onClose }) => {
     setMaterials(updatedMaterials);
   };
   
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!patient || newMessage.trim() === '') return;
     
-    console.log("Sending message:", newMessage);
-    toast({ title: "Funcionalidade em desenvolvimento", description: "O chat ainda não está conectado ao banco de dados." });
-    setNewMessage('');
+    try {
+      const message = {
+        sender_id: patient.id, // ID do paciente
+        receiver_id: patient.id, // ID do paciente (para o chat ser entre paciente e nutri)
+        message_text: newMessage,
+        sender_type: 'nutri', // A nutricionista está enviando
+        timestamp: new Date().toISOString(),
+      };
+      await addMessageToChat(message);
+      setNewMessage('');
+      loadPatientData(); // Recarrega as mensagens para atualizar a UI
+      toast({ title: "Mensagem enviada!", description: "Sua mensagem foi enviada com sucesso." });
+    } catch (error) {
+      toast({ title: "Erro ao enviar mensagem", description: error.message, variant: "destructive" });
+    }
   };
 
   const renderChecklistSection = (title, icon, items) => {
@@ -282,3 +295,4 @@ const PatientDetailsView = ({ patient, onClose }) => {
 };
 
 export default PatientDetailsView;
+

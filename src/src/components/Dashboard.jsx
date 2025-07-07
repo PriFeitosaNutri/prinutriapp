@@ -6,6 +6,7 @@ import DashboardMotivation from '@/components/dashboard/DashboardMotivation';
 import DashboardTabs from '@/components/dashboard/DashboardTabs';
 import DashboardFooter from '@/components/dashboard/DashboardFooter';
 import { waterPins, taskPins, orgulhoDaNutriRewards, getCurrentWeekNumber } from '@/lib/gamification';
+import { getProfile } from '@/lib/database';
 
 const Dashboard = ({ user, onLogout }) => {
   const [dailyMotivation, setDailyMotivation] = useState({ 
@@ -145,6 +146,8 @@ const Dashboard = ({ user, onLogout }) => {
     }
   }, [normalizedUserEmail, user.name]);
 
+  const [shoppingListItems, setShoppingListItems] = useState([]);
+
   useEffect(() => {
     const todayStr = new Date().toDateString();
     const savedWaterIntake = localStorage.getItem(`waterIntake_${normalizedUserEmail}_${todayStr}_PriNutriApp`);
@@ -171,7 +174,12 @@ const Dashboard = ({ user, onLogout }) => {
     
     trackDCCInteraction('login');
     
-    const checkUpdates = () => {
+    const checkUpdates = async () => {
+      const profile = await getProfile(user.id);
+      if (profile && profile.shopping_list) {
+        setShoppingListItems(profile.shopping_list.map(item => ({ text: item, completed: false })));
+      }
+
       const newNotifications = {
         plan: localStorage.getItem(`lastUpdate_mealPlan_${normalizedUserEmail}_PriNutriApp`) > (localStorage.getItem(`lastSeen_mealPlan_${normalizedUserEmail}_PriNutriApp`) || '0'),
         shopping: localStorage.getItem(`lastUpdate_shoppingList_${normalizedUserEmail}_PriNutriApp`) > (localStorage.getItem(`lastSeen_shoppingList_${normalizedUserEmail}_PriNutriApp`) || '0'),
@@ -183,7 +191,7 @@ const Dashboard = ({ user, onLogout }) => {
     checkUpdates();
     const interval = setInterval(checkUpdates, 5000);
     return () => clearInterval(interval);
-  }, [normalizedUserEmail, updateCurrentWaterPin, updateCurrentTaskPin, trackDCCInteraction]);
+  }, [normalizedUserEmail, updateCurrentWaterPin, updateCurrentTaskPin, trackDCCInteraction, user.id]);
 
   useEffect(() => {
     const todayStr = new Date().toDateString();
@@ -241,6 +249,14 @@ const Dashboard = ({ user, onLogout }) => {
     trackDCCInteraction('foodDiary');
   };
 
+  const handleShoppingListItemToggle = (index) => {
+    setShoppingListItems(prevItems =>
+      prevItems.map((item, i) =>
+        i === index ? { ...item, completed: !item.completed } : item
+      )
+    );
+  };
+
   const currentMainMotivation = activeTab === 'water' ? { text: "Cada gota conta para sua saúde!", img: hydrationData.motivationImage } : dailyMotivation;
 
   const handleTabChange = (value) => {
@@ -296,6 +312,8 @@ const Dashboard = ({ user, onLogout }) => {
           handleFoodDiaryEntry={handleFoodDiaryEntry}
           checkAllTasksCompletedToday={checkAllTasksCompletedToday}
           currentTaskPin={currentTaskPin}
+          shoppingListItems={shoppingListItems}
+          handleShoppingListItemToggle={handleShoppingListItemToggle}
         />
 
         <DashboardFooter />
@@ -305,3 +323,4 @@ const Dashboard = ({ user, onLogout }) => {
 };
 
 export default Dashboard;
+

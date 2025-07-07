@@ -12,21 +12,15 @@ const ShoppingList = ({ user }) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    let parsedItems = [];
-    const listData = user?.shopping_list;
-
-    if (Array.isArray(listData)) {
-      parsedItems = listData;
-    } else if (typeof listData === 'string' && listData.trim() !== '') {
-      parsedItems = listData.split('\n')
-        .filter(item => item.trim() !== '')
-        .map((itemText, index) => ({
-          id: `item-${index}`,
-          text: itemText,
-          checked: false,
-        }));
+    if (user?.shopping_list) {
+      // Ensure each item has a unique ID and a checked status
+      const parsedItems = user.shopping_list.map((item, index) => ({
+        id: item.id || `item-${index}`,
+        text: item.text || item,
+        checked: item.checked || false,
+      }));
+      setItems(parsedItems);
     }
-    setItems(parsedItems);
   }, [user]);
 
   const handleCheckItem = async (itemId) => {
@@ -43,7 +37,7 @@ const ShoppingList = ({ user }) => {
         description: "Não foi possível salvar a alteração. Tente novamente.",
         variant: "destructive",
       });
-      setItems(items);
+      setItems(items); // Revert to previous state on error
     }
   };
 
@@ -76,3 +70,4 @@ const ShoppingList = ({ user }) => {
 };
 
 export default ShoppingList;
+

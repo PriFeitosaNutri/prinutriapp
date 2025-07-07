@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
-import { 
-  Users, 
-  FileText, 
-  BarChart3, 
-  CheckCircle, 
-  Clock, 
+import {
+  Users,
+  FileText,
+  BarChart3,
+  CheckCircle,
+  Clock,
   MessageSquare,
   Send,
   LogOut,
@@ -29,6 +29,7 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearSca
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { supabase } from '@/lib/supabaseClient'; // Importar o cliente Supabase
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
@@ -44,86 +45,131 @@ const AdminDashboard = ({ onLogout }) => {
   const [newMaterial, setNewMaterial] = useState({ title: '', url: '' });
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  
-  const adminEmails = ['admin@prinutriapp.com', 'suportefitlindaoficial@gmail.com'];
 
-  const loadPatientsData = useCallback(() => {
-    const allKeys = Object.keys(localStorage);
-    const patientEmails = new Set();
-    allKeys.forEach(key => {
-      if (key.startsWith('anamnesis_') && !adminEmails.some(adminEmail => key.includes(adminEmail))) {
-        const email = key.substring('anamnesis_'.length, key.lastIndexOf('_PriNutriApp'));
-        patientEmails.add(email);
-      }
-    });
+  const loadPatientsData = useCallback(async () => {
+    try {
+      const { data: anamnesisForms, error: anamnesisError } = await supabase
+        .from('anamnesis_forms')
+        .select('*');
 
-    const loadedPatients = Array.from(patientEmails).map((email, index) => {
-      const anamnesisData = JSON.parse(localStorage.getItem(`anamnesis_${email}_PriNutriApp`)) || {};
-      const isApproved = localStorage.getItem(`approved_${email}_PriNutriApp`) === 'true';
-      const patientMessages = JSON.parse(localStorage.getItem(`messages_${email}_PriNutriApp`)) || [];
-      const unreadMessages = patientMessages.filter(msg => msg.sender === 'patient' && !msg.readByNutri).length > 0;
+      if (anamnesisError) throw anamnesisError;
 
-      return {
-        id: index + 1,
-        name: anamnesisData.name || email.split('@')[0],
-        email: email,
-        status: isApproved ? "approved" : "pending",
-        anamnesis: anamnesisData,
-        hasUnreadMessages: unreadMessages,
-      };
-    });
-    setPatients(loadedPatients);
-  }, [adminEmails]);
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email');
+
+      if (profilesError) throw profilesError;
+
+      const loadedPatients = anamnesisForms.map((anamnesis) => {
+        const profile = profiles.find((p) => p.id === anamnesis.user_id);
+        return {
+          id: anamnesis.id,
+          name: anamnesis.name || (profile ? profile.email.split('@')[0] : 'N/A'),
+          email: profile ? profile.email : 'N/A',
+          status: 'approved', // Assuming all Supabase patients are approved for now
+          anamnesis: anamnesis,
+          hasUnreadMessages: false, // Messages will be handled separately
+        };
+      });
+      setPatients(loadedPatients);
+    } catch (error) {
+      console.error('Error loading patients from Supabase:', error.message);
+      toast({
+        title: 'Erro ao carregar pacientes',
+        description: 'Não foi possível carregar os dados dos pacientes do Supabase.',
+        variant: 'destructive',
+      });
+      setPatients([]);
+    }
+  }, [toast]);
 
   useEffect(() => {
     loadPatientsData();
-    const interval = setInterval(loadPatientsData, 5000); 
+    const interval = setInterval(loadPatientsData, 5000);
     return () => clearInterval(interval);
   }, [loadPatientsData]);
-  
-  const approvePatient = (patientEmail) => {
-    localStorage.setItem(`approved_${patientEmail}_PriNutriApp`, 'true');
-    setPatients(prev => prev.map(p => 
-      p.email === patientEmail ? { ...p, status: "approved" } : p
-    ));
-    if (selectedPatient && selectedPatient.email === patientEmail) {
-      setSelectedPatient(prev => ({...prev, status: "approved"}));
+
+  const approvePatient = async (patientEmail) => {
+    try {
+      const patientToApprove = patients.find(p => p.email === patientEmail);
+      if (!patientToApprove) return;
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_approved: true })
+        .eq('email', patientEmail);
+
+      if (error) throw error;
+
+      setPatients(prev => prev.map(p =>
+        p.email === patientEmail ? { ...p, status: 'approved' } : p
+      ));
+      if (selectedPatient && selectedPatient.email === patientEmail) {
+        setSelectedPatient(prev => ({...prev, status: 'approved'}));
+      }
+      toast({
+        title: 'Paciente aprovada!',
+        description: `${patientEmail} agora tem acesso completo ao PriNutriApp.`,
+        className: 'bg-primary text-primary-foreground'
+      });
+    } catch (error) {
+      console.error('Error approving patient:', error.message);
+      toast({
+        title: 'Erro ao aprovar paciente',
+        description: `Não foi possível aprovar ${patientEmail}.`,
+        variant: 'destructive',
+      });
     }
-    toast({
-      title: "Paciente aprovada!",
-      description: `${patientEmail} agora tem acesso completo ao PriNutriApp.`,
-      className: "bg-primary text-primary-foreground"
-    });
   };
 
-  const fetchPatientDetails = (patient) => {
+  const fetchPatientDetails = async (patient) => {
     if (!patient || !patient.email) return null;
-    
+
     const today = new Date().toDateString();
     const anamnesis = patient.anamnesis || {};
-    const waterGoal = parseInt(localStorage.getItem(`waterGoal_${patient.email}_PriNutriApp`)) || 2000;
-    const waterIntakeToday = parseInt(localStorage.getItem(`waterIntake_${patient.email}_${today}_PriNutriApp`)) || 0;
-    
-    const mealsToday = JSON.parse(localStorage.getItem(`mealsV2_${patient.email}_${today}_PriNutriApp`)) || [];
-    
-    const dailyChecklistRaw = localStorage.getItem(`dailyChecklistV3_${patient.email}_${today}_PriNutriApp`);
-    let dailyChecklist = { habits: [], feelings: null };
-    if (dailyChecklistRaw) {
-        try {
-            dailyChecklist = JSON.parse(dailyChecklistRaw);
-        } catch (e) { console.error("Error parsing daily checklist for admin", e); }
-    }
+
+    // Fetch data from Supabase instead of localStorage
+    const { data: waterGoalData, error: waterGoalError } = await supabase
+      .from('user_metrics')
+      .select('water_goal')
+      .eq('user_id', patient.id)
+      .single();
+    const waterGoal = waterGoalData?.water_goal || 2000;
+
+    const { data: waterIntakeData, error: waterIntakeError } = await supabase
+      .from('user_metrics')
+      .select('water_intake')
+      .eq('user_id', patient.id)
+      .eq('date', today)
+      .single();
+    const waterIntakeToday = waterIntakeData?.water_intake || 0;
+
+    const { data: mealsData, error: mealsError } = await supabase
+      .from('food_diary_entries')
+      .select('food')
+      .eq('user_id', patient.id)
+      .eq('date', today);
+    const mealsToday = mealsData || [];
+
+    const { data: dailyChecklistData, error: dailyChecklistError } = await supabase
+      .from('daily_checklists')
+      .select('habits, feelings')
+      .eq('user_id', patient.id)
+      .eq('date', today)
+      .single();
+    let dailyChecklist = dailyChecklistData || { habits: [], feelings: null };
+
     const completedHabits = dailyChecklist.habits?.filter(h => h.completed).length || 0;
     const totalHabits = dailyChecklist.habits?.length || 0;
 
-    return { 
-      name: patient.name, 
-      email: patient.email, 
-      anamnesisSummary: { 
-        age: anamnesis.age, 
-        weight: anamnesis.weight, 
-        height: anamnesis.height, 
-        goals: anamnesis.goals, 
+    return {
+      name: patient.name,
+      email: patient.email,
+      anamnesisSummary: {
+        age: anamnesis.age,
+        weight: anamnesis.weight,
+        height: anamnesis.height,
+        goals: anamnesis.goals,
         weightLossGoal: anamnesis.weightLossGoal,
         medicalConditions: anamnesis.medicalConditions,
         activityLevel: anamnesis.activityLevel,
@@ -146,44 +192,107 @@ const AdminDashboard = ({ onLogout }) => {
     };
   };
 
-  const markMessagesAsRead = (patientEmail) => {
-    const patientMessages = JSON.parse(localStorage.getItem(`messages_${patientEmail}_PriNutriApp`)) || [];
-    const updatedMessages = patientMessages.map(msg => 
-      msg.sender === 'patient' && !msg.readByNutri ? { ...msg, readByNutri: true } : msg
-    );
-    localStorage.setItem(`messages_${patientEmail}_PriNutriApp`, JSON.stringify(updatedMessages));
-    setPatients(prev => prev.map(p => p.email === patientEmail ? { ...p, hasUnreadMessages: false } : p));
+  const markMessagesAsRead = async (patientEmail) => {
+    try {
+      const { data: currentMessages, error: fetchError } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('recipient_email', patientEmail);
+
+      if (fetchError) throw fetchError;
+
+      const updatedMessages = currentMessages.map(msg =>
+        msg.sender === 'patient' && !msg.read_by_nutri ? { ...msg, read_by_nutri: true } : msg
+      );
+
+      const { error: updateError } = await supabase
+        .from('messages')
+        .upsert(updatedMessages, { onConflict: 'id' });
+
+      if (updateError) throw updateError;
+
+      setPatients(prev => prev.map(p => p.email === patientEmail ? { ...p, hasUnreadMessages: false } : p));
+    } catch (error) {
+      console.error('Error marking messages as read:', error.message);
+      toast({
+        title: 'Erro ao marcar mensagens como lidas',
+        description: 'Não foi possível atualizar o status das mensagens.',
+        variant: 'destructive',
+      });
+    }
   };
 
   useEffect(() => {
-    if (selectedPatient) {
-      setPatientDetails(fetchPatientDetails(selectedPatient));
-      setShoppingList(localStorage.getItem(`shoppingList_${selectedPatient.email}_PriNutriApp`) || '');
-      setMealPlan(localStorage.getItem(`mealPlan_${selectedPatient.email}_PriNutriApp`) || '');
-      setMaterials(JSON.parse(localStorage.getItem(`materials_${selectedPatient.email}_PriNutriApp`)) || []);
-      const currentMessages = JSON.parse(localStorage.getItem(`messages_${selectedPatient.email}_PriNutriApp`)) || [];
-      setMessages(currentMessages);
-      
-      if (currentMessages.some(msg => msg.sender === 'patient' && !msg.readByNutri)) {
-        markMessagesAsRead(selectedPatient.email);
+    const loadPatientSpecificData = async () => {
+      if (selectedPatient) {
+        setPatientDetails(await fetchPatientDetails(selectedPatient));
+
+        const { data: shoppingListData, error: shoppingListError } = await supabase
+          .from('patient_content')
+          .select('shopping_list')
+          .eq('user_id', selectedPatient.id)
+          .single();
+        setShoppingList(shoppingListData?.shopping_list || '');
+
+        const { data: mealPlanData, error: mealPlanError } = await supabase
+          .from('patient_content')
+          .select('meal_plan')
+          .eq('user_id', selectedPatient.id)
+          .single();
+        setMealPlan(mealPlanData?.meal_plan || '');
+
+        const { data: materialsData, error: materialsError } = await supabase
+          .from('patient_content')
+          .select('materials')
+          .eq('user_id', selectedPatient.id)
+          .single();
+        setMaterials(materialsData?.materials || []);
+
+        const { data: currentMessages, error: messagesError } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('recipient_email', selectedPatient.email)
+          .order('timestamp', { ascending: true });
+        setMessages(currentMessages || []);
+
+        if (currentMessages && currentMessages.some(msg => msg.sender === 'patient' && !msg.read_by_nutri)) {
+          markMessagesAsRead(selectedPatient.email);
+        }
+
+      } else {
+        setPatientDetails(null);
       }
+    };
+    loadPatientSpecificData();
+  }, [selectedPatient, markMessagesAsRead]);
 
-    } else {
-      setPatientDetails(null);
-    }
-  }, [selectedPatient]);
-
-  const handleSaveContent = () => {
+  const handleSaveContent = async () => {
     if (!selectedPatient) return;
-    localStorage.setItem(`shoppingList_${selectedPatient.email}_PriNutriApp`, shoppingList);
-    localStorage.setItem(`mealPlan_${selectedPatient.email}_PriNutriApp`, mealPlan);
-    localStorage.setItem(`materials_${selectedPatient.email}_PriNutriApp`, JSON.stringify(materials));
-    
-    localStorage.setItem(`lastUpdate_shoppingList_${selectedPatient.email}_PriNutriApp`, new Date().toISOString());
-    localStorage.setItem(`lastUpdate_mealPlan_${selectedPatient.email}_PriNutriApp`, new Date().toISOString());
-    localStorage.setItem(`lastUpdate_materials_${selectedPatient.email}_PriNutriApp`, new Date().toISOString());
-    
-    toast({ title: "Conteúdo salvo!", description: `As informações de ${selectedPatient.name} foram atualizadas.`, className: "bg-primary text-primary-foreground" });
+    try {
+      const { error } = await supabase
+        .from('patient_content')
+        .upsert(
+          {
+            user_id: selectedPatient.id,
+            shopping_list: shoppingList,
+            meal_plan: mealPlan,
+            materials: materials,
+            last_updated: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' }
+        );
+
+      if (error) throw error;
+
+      toast({ title: 'Conteúdo salvo!', description: `As informações de ${selectedPatient.name} foram atualizadas.`, className: 'bg-primary text-primary-foreground' });
+    } catch (error) {
+      console.error('Error saving content:', error.message);
+      toast({
+        title: 'Erro ao salvar conteúdo',
+        description: 'Não foi possível salvar as informações para o paciente.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleAddMaterial = () => {
@@ -198,20 +307,33 @@ const AdminDashboard = ({ onLogout }) => {
     const updatedMaterials = materials.filter((_, i) => i !== index);
     setMaterials(updatedMaterials);
   };
-  
-  const handleSendMessage = () => {
+
+  const handleSendMessage = async () => {
     if (!selectedPatient || newMessage.trim() === '') return;
-    const message = {
-      id: Date.now(),
-      text: newMessage,
-      sender: 'nutri',
-      timestamp: new Date().toISOString(),
-    };
-    const updatedMessages = [...messages, message];
-    setMessages(updatedMessages);
-    localStorage.setItem(`messages_${selectedPatient.email}_PriNutriApp`, JSON.stringify(updatedMessages));
-    localStorage.setItem(`lastUpdate_messages_${selectedPatient.email}_PriNutriApp`, new Date().toISOString());
-    setNewMessage('');
+    try {
+      const message = {
+        sender: 'nutri',
+        recipient_email: selectedPatient.email,
+        text: newMessage,
+        timestamp: new Date().toISOString(),
+        read_by_nutri: true, // Nutri messages are read by nutri by default
+        read_by_patient: false,
+      };
+      const { error } = await supabase.from('messages').insert([message]);
+
+      if (error) throw error;
+
+      setMessages(prev => [...prev, { ...message, id: Date.now() }]); // Add a temporary ID for UI
+      setNewMessage('');
+      toast({ title: 'Mensagem enviada!', description: 'Sua mensagem foi enviada com sucesso.', className: 'bg-primary text-primary-foreground' });
+    } catch (error) {
+      console.error('Error sending message:', error.message);
+      toast({
+        title: 'Erro ao enviar mensagem',
+        description: 'Não foi possível enviar a mensagem.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const barChartOptions = {
@@ -240,9 +362,9 @@ const AdminDashboard = ({ onLogout }) => {
     const unreadPatient = patients.find(p => p.hasUnreadMessages);
     if (unreadPatient) {
       toast({
-        title: "Nova Mensagem! 📬",
+        title: 'Nova Mensagem! 📬',
         description: `Você tem uma nova mensagem de ${unreadPatient.name}.`,
-        className: "bg-accent text-accent-foreground cursor-pointer",
+        className: 'bg-accent text-accent-foreground cursor-pointer',
         duration: 10000,
         onClick: () => {
           setSelectedPatient(unreadPatient);
@@ -346,7 +468,7 @@ const AdminDashboard = ({ onLogout }) => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Card><CardHeader><CardTitle className="text-md flex items-center text-primary"><Droplets className="mr-2"/>Hidratação</CardTitle></CardHeader><CardContent><p>{patientDetails.hydration.intake}ml / {patientDetails.hydration.goal}ml ({patientDetails.hydration.progress.toFixed(0)}%)</p></CardContent></Card>
                     <Card><CardHeader><CardTitle className="text-md flex items-center text-primary"><BookOpen className="mr-2"/>Diário Alimentar</CardTitle></CardHeader><CardContent><p>{patientDetails.foodDiary.mealsCount} refeições hoje</p><p className="text-xs text-muted-foreground">Última: {patientDetails.foodDiary.lastMeals[0]?.food.substring(0,20) || 'N/A'}...</p></CardContent></Card>
-                    <Card><CardHeader><CardTitle className="text-md flex items-center text-primary"><ClipboardList className="mr-2"/>Checklist</CardTitle></CardHeader><CardContent><p>{patientDetails.checklist.completed}/{patientDetails.checklist.total} hábitos ({patientDetails.checklist.progress.toFixed(0)}%)</p><p className="text-xs text-muted-foreground">Sentimento: {patientDetails.checklist.feeling || 'N/A'}</p></CardContent></Card>
+                    <Card><CardHeader><CardTitle className="text-md flex items-center text-primary"><ClipboardList className="mr-2"/>Checklist</CardTitle></CardHeader><CardContent><p>{patientDetails.checklist.completed}/{patientDetails.checklist.total} hábitos ({patientDetails.checklist.progress.toFixed(0)}%)</p><CardContent></Card>
                 </div>
 
                 <Card>
@@ -400,3 +522,4 @@ const AdminDashboard = ({ onLogout }) => {
 };
 
 export default AdminDashboard;
+
