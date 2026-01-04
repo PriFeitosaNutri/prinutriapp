@@ -22,6 +22,7 @@ const DCCCommunity = ({ user, onClose, isAdmin = false }) => {
   const [userProfile, setUserProfile] = useState({ name: user.name, bio: '' });
   const [editingProfile, setEditingProfile] = useState(false);
   const [ranking, setRanking] = useState([]);
+  const [members, setMembers] = useState([]);
   const [userPhoto, setUserPhoto] = useState(user.photo_url || '');
   const [nutriPhotoState, setNutriPhotoState] = useState('');
   const { toast } = useToast();
@@ -42,11 +43,20 @@ const DCCCommunity = ({ user, onClose, isAdmin = false }) => {
     if (isAdmin) {
       const adminProfile = await getProfile(user.id);
       setNutriPhotoState(adminProfile?.photo_url || '');
-      setUserProfile({ name: adminProfile?.name || "Nutricionista", bio: "Administradora da Comunidade" });
+      setUserProfile({ name: adminProfile?.name || "Nutricionista", bio: adminProfile?.bio || "Administradora da Comunidade" });
     } else {
-      setUserProfile({ name: user.name, bio: user.bio || "Membro da comunidade DCC" });
-      setUserPhoto(user.photo_url || '');
+      const profile = await getProfile(user.id);
+      setUserProfile({ name: profile?.name || user.name, bio: profile?.bio || "Membro da comunidade DCC" });
+      setUserPhoto(profile?.photo_url || user.photo_url || '');
     }
+
+    const { data: membersData, error: membersError } = await supabase
+      .from('profiles')
+      .select('id, name, bio, photo_url, is_admin')
+      .order('is_admin', { ascending: false });
+    
+    if (membersError) console.error("Error loading members:", membersError);
+    else setMembers(membersData || []);
   }, [isAdmin, user]);
 
   useEffect(() => {
@@ -55,7 +65,6 @@ const DCCCommunity = ({ user, onClose, isAdmin = false }) => {
 
 
   const saveUserProfile = async () => {
-    if (isAdmin) return;
     try {
       await updateProfile(user.id, { name: userProfile.name, bio: userProfile.bio });
       setEditingProfile(false);
@@ -64,6 +73,7 @@ const DCCCommunity = ({ user, onClose, isAdmin = false }) => {
         description: "Suas informações foram salvas com sucesso!",
         className: "bg-primary text-primary-foreground"
       });
+      loadInitialData();
     } catch(error) {
       toast({ title: "Erro", description: "Não foi possível salvar seu perfil.", variant: "destructive" });
     }
@@ -71,7 +81,7 @@ const DCCCommunity = ({ user, onClose, isAdmin = false }) => {
 
   const displayUserPhoto = isAdmin ? nutriPhotoState : userPhoto;
   const displayUserName = userProfile.name;
-  const displayUserBio = isAdmin ? 'Administradora da Comunidade' : (userProfile.bio || 'Membro da comunidade DCC');
+  const displayUserBio = userProfile.bio || (isAdmin ? 'Administradora da Comunidade' : 'Membro da comunidade DCC');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 p-4">
@@ -81,9 +91,14 @@ const DCCCommunity = ({ user, onClose, isAdmin = false }) => {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Voltar
           </Button>
-          <div className="text-center flex-1">
-            <h1 className="text-xl sm:text-2xl font-bold text-primary">Meta da Leveza: DCC</h1>
+          <div className="text-center flex-1 group relative">
+            <h1 className="text-xl sm:text-2xl font-bold text-primary cursor-help">
+              Meta da Leveza: DCC
+            </h1>
             <p className="text-sm text-muted-foreground">Desafio Coletivo do Cuidado</p>
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">
+              A Guilda (DCC) é o nosso Desafio Coletivo do Cuidado. Um espaço para compartilharmos nossa jornada, apoiarmos umas às outras e batermos metas juntas!
+            </div>
           </div>
           <div className="w-20 hidden sm:block"></div>
         </div>
@@ -104,18 +119,16 @@ const DCCCommunity = ({ user, onClose, isAdmin = false }) => {
                   <p className="text-sm text-muted-foreground">{displayUserBio}</p>
                 </div>
               </div>
-              {!isAdmin && (
-                <Button variant="outline" size="sm" onClick={() => setEditingProfile(true)}>
-                  <Edit3 className="w-4 h-4 mr-1" />
-                  Editar
-                </Button>
-              )}
+              <Button variant="outline" size="sm" onClick={() => setEditingProfile(true)}>
+                <Edit3 className="w-4 h-4 mr-1" />
+                Editar
+              </Button>
             </div>
           </CardContent>
         </Card>
 
         <AnimatePresence>
-          {!isAdmin && editingProfile && (
+          {editingProfile && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -162,10 +175,14 @@ const DCCCommunity = ({ user, onClose, isAdmin = false }) => {
         </AnimatePresence>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-2' : 'grid-cols-3'} mb-6`}>
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-4'} mb-6`}>
             <TabsTrigger value="community" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               Comunidade
+            </TabsTrigger>
+            <TabsTrigger value="members" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Membros
             </TabsTrigger>
             <TabsTrigger value="meta" className="flex items-center gap-2">
               <Target className="w-4 h-4" />
@@ -188,6 +205,40 @@ const DCCCommunity = ({ user, onClose, isAdmin = false }) => {
               toast={toast}
               isAdmin={isAdmin}
             />
+          </TabsContent>
+
+          <TabsContent value="members">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Participantes da DCC
+                </CardTitle>
+                <CardDescription>Conheça todas as mulheres incríveis que fazem parte desta comunidade.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {members.map((member) => (
+                    <div key={member.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-transparent hover:border-primary/20 transition-all">
+                      <div className="w-12 h-12 bg-gradient-to-br from-pink-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold overflow-hidden flex-shrink-0">
+                        {member.photo_url ? (
+                          <img src={member.photo_url} alt={member.name} className="w-full h-full object-cover" />
+                        ) : (
+                          member.name?.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold truncate">{member.name}</h4>
+                          {member.is_admin && <Badge className="bg-primary text-[10px] h-4 px-1">Nutri</Badge>}
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{member.bio || (member.is_admin ? 'Administradora' : 'Membro da DCC')}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="meta">

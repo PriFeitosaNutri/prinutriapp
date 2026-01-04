@@ -63,30 +63,39 @@ const PriNutriFlix = ({ user }) => {
     return <Play className="w-8 h-8 text-primary" />;
   };
 
-  const getMaterialCover = (material) => {
-    // Try to get a cover image for the material
-    if (material.cover) {
-      return material.cover;
-    }
-    
-    // For YouTube videos, try to extract thumbnail
-    if (material.url.includes('youtube.com') || material.url.includes('youtu.be')) {
-      try {
-        let videoId = '';
-        if (material.url.includes('youtube.com/watch?v=')) {
-          videoId = material.url.split('v=')[1].split('&')[0];
-        } else if (material.url.includes('youtu.be/')) {
-          videoId = material.url.split('youtu.be/')[1].split('?')[0];
-        }
-        if (videoId) {
-          return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
-        }
-      } catch (e) {
-        // Fallback to default
+  const getYouTubeId = (url) => {
+    try {
+      let videoId = '';
+      if (url.includes('youtube.com/watch?v=')) {
+        videoId = url.split('v=')[1].split('&')[0];
+      } else if (url.includes('youtu.be/')) {
+        videoId = url.split('youtu.be/')[1].split('?')[0];
+      } else if (url.includes('youtube.com/embed/')) {
+        videoId = url.split('embed/')[1].split('?')[0];
       }
+      return videoId;
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const getMaterialCover = (material) => {
+    if (material.cover) return material.cover;
+    
+    const videoId = getYouTubeId(material.url);
+    if (videoId) {
+      return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
     }
     
     return null;
+  };
+
+  const formatMaterialUrl = (url) => {
+    const videoId = getYouTubeId(url);
+    if (videoId) {
+      return `https://www.youtube.com/embed/${videoId}`;
+    }
+    return url;
   };
 
   const getFolderColor = (folderName) => {
@@ -101,6 +110,42 @@ const PriNutriFlix = ({ user }) => {
     const index = folderName.length % colors.length;
     return colors[index];
   };
+
+  const [activeVideo, setActiveVideo] = useState(null);
+
+  if (activeVideo) {
+    return (
+      <Card className="shadow-lg bg-black text-white min-h-[600px]">
+        <CardHeader className="bg-gray-900 border-b border-gray-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setActiveVideo(null)}
+                className="text-white hover:bg-white/20 mr-4"
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </Button>
+              <CardTitle className="text-xl font-bold text-white truncate max-w-md">
+                {activeVideo.title}
+              </CardTitle>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 bg-black flex items-center justify-center min-h-[400px]">
+          <iframe
+            src={formatMaterialUrl(activeVideo.url)}
+            title={activeVideo.title}
+            className="w-full aspect-video"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          ></iframe>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (selectedFolder) {
     return (
@@ -133,16 +178,15 @@ const PriNutriFlix = ({ user }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {folders[selectedFolder].map((material, index) => {
                 const coverImage = getMaterialCover(material);
+                const isVideo = getYouTubeId(material.url);
                 return (
-                  <motion.a
+                  <motion.div
                     key={index}
-                    href={material.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="group"
+                    className="group cursor-pointer"
+                    onClick={() => isVideo ? setActiveVideo(material) : window.open(material.url, '_blank')}
                   >
                     <div className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-700 transition-all duration-300 transform hover:scale-105">
                       <div className="aspect-video bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center relative overflow-hidden">
@@ -167,11 +211,11 @@ const PriNutriFlix = ({ user }) => {
                       <div className="p-4">
                         <h3 className="font-semibold text-white text-sm line-clamp-2">{material.title}</h3>
                         <p className="text-gray-400 text-xs mt-1">
-                          {material.url.includes('youtube') ? 'Vídeo' : material.url.endsWith('.pdf') ? 'PDF' : 'Link'}
+                          {isVideo ? 'Vídeo' : material.url.endsWith('.pdf') ? 'PDF' : 'Link'}
                         </p>
                       </div>
                     </div>
-                  </motion.a>
+                  </motion.div>
                 );
               })}
             </div>
@@ -209,16 +253,15 @@ const PriNutriFlix = ({ user }) => {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
                   {folderMaterials.slice(0, 6).map((material, index) => {
                     const coverImage = getMaterialCover(material);
+                    const isVideo = getYouTubeId(material.url);
                     return (
-                      <motion.a
+                      <motion.div
                         key={index}
-                        href={material.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: (folderIndex * 0.1) + (index * 0.05) }}
-                        className="group"
+                        className="group cursor-pointer"
+                        onClick={() => isVideo ? setActiveVideo(material) : window.open(material.url, '_blank')}
                       >
                         <div className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-700 transition-all duration-300 transform hover:scale-105">
                           <div className="aspect-video bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center relative overflow-hidden">
@@ -244,7 +287,7 @@ const PriNutriFlix = ({ user }) => {
                             <h3 className="font-medium text-white text-xs line-clamp-2">{material.title}</h3>
                           </div>
                         </div>
-                      </motion.a>
+                      </motion.div>
                     );
                   })}
                   {folderMaterials.length > 6 && (

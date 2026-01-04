@@ -119,8 +119,11 @@ export const MetaTab = ({ communityProgress, weeklyRewards, ranking }) => (
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <h3 className="font-semibold mb-2">{reward.title}</h3>
-            <p className="text-sm text-muted-foreground mb-3">{reward.description}</p>
+	            <h3 className="font-semibold mb-2">{reward.title}</h3>
+	            <p className="text-sm text-muted-foreground mb-1">{reward.description}</p>
+	            {reward.duration_days && (
+	              <p className="text-xs font-bold text-primary mb-3">Duração: {reward.duration_days} dias</p>
+	            )}
             {reward.unlocked && reward.link && (
                <a href={reward.link} target="_blank" rel="noopener noreferrer">
                  <Button size="sm" className="w-full">

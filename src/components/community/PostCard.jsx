@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
-import { Heart, MessageCircle, User, Send, Trash2 } from 'lucide-react';
+import { Heart, MessageCircle, User, Send, Trash2, Flag } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,6 +62,27 @@ const PostCard = ({
   const comments = post.dcc_interactions?.filter(i => i.interaction_type === 'comment') || [];
   const hasLiked = likes.some(like => like.user_id === user.id);
 
+  const handleReport = async () => {
+    const reason = window.prompt("Por que você deseja denunciar esta postagem?");
+    if (!reason) return;
+
+    try {
+      const { error } = await supabase.from('dcc_violations').insert({
+        post_id: post.id,
+        user_id: user.id,
+        reason: reason,
+        post_content: post.content,
+        user_name: user.name
+      });
+
+      if (error) throw error;
+      alert("Denúncia enviada com sucesso. A nutricionista irá analisar.");
+    } catch (error) {
+      console.error("Erro ao denunciar:", error);
+      alert("Erro ao enviar denúncia.");
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -90,6 +111,11 @@ const PostCard = ({
               <Badge variant="outline">
                 {categories.find(c => c.id === post.category)?.icon} {categories.find(c => c.id === post.category)?.name}
               </Badge>
+              {!isAdmin && (
+                <Button variant="ghost" size="icon" onClick={handleReport} className="text-muted-foreground hover:text-destructive h-8 w-8" title="Denunciar postagem">
+                  <Flag className="w-4 h-4" />
+                </Button>
+              )}
               {isAdmin && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>

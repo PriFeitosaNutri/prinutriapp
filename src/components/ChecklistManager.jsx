@@ -74,6 +74,46 @@ const ChecklistManager = ({ user, onChecklistCompleted }) => {
     { id: 5, text: "Revisar seu progresso e metas", icon: "https://storage.googleapis.com/hostinger-horizons-assets-prod/b9d04e3e-a936-445c-b4df-9d7bf5f8a549/9e0b22040300f5996924b7efd20defff.png" },
     { id: 6, text: "O planejamento e lista de compras ajudaram?", isQuestion: true, answer: null },
   ];
+
+  const realChecklist = [
+    { id: 'R', text: 'Respeitei minha fome e saciedade?', icon: '🍽️' },
+    { id: 'E', text: 'Estive presente e consciente ao comer?', icon: '🧘' },
+    { id: 'A', text: 'Apreciei os alimentos sem culpa?', icon: '✨' },
+    { id: 'L', text: 'Liderei minhas escolhas com equilíbrio?', icon: '⚖️' },
+  ];
+
+  const [realAnswers, setRealAnswers] = useState({});
+
+  useEffect(() => {
+    const savedReal = localStorage.getItem(`realChecklist_${user.email}_${getWeekStart().toDateString()}_PriNutriApp`);
+    if (savedReal) setRealAnswers(JSON.parse(savedReal));
+  }, [user.email]);
+
+  const handleRealToggle = (id, value) => {
+    const updated = { ...realAnswers, [id]: value };
+    setRealAnswers(updated);
+    localStorage.setItem(`realChecklist_${user.email}_${getWeekStart().toDateString()}_PriNutriApp`, JSON.stringify(updated));
+  };
+
+  const getPredominantLetter = () => {
+    const counts = { R: 0, E: 0, A: 0, L: 0 };
+    Object.entries(realAnswers).forEach(([id, val]) => {
+      if (val === 'sim') counts[id]++;
+    });
+    const max = Math.max(...Object.values(counts));
+    if (max === 0) return null;
+    return Object.keys(counts).find(key => counts[key] === max);
+  };
+
+  const getLetterFeedback = (letter) => {
+    const feedbacks = {
+      R: "Você está em sintonia com os sinais do seu corpo! Continuar respeitando a fome e saciedade é a base para uma relação saudável com a comida.",
+      E: "Sua atenção plena ao comer está incrível! Estar presente transforma o ato de se alimentar em uma experiência muito mais rica.",
+      A: "Comer sem culpa é libertador! Você está aprendendo a apreciar os alimentos pelo que eles são, nutrindo corpo e alma.",
+      L: "O equilíbrio é a chave, e você está no comando! Suas escolhas conscientes mostram maturidade e autocuidado."
+    };
+    return feedbacks[letter] || "";
+  };
   
   useEffect(() => {
     const savedDaily = localStorage.getItem(dailyKey);
@@ -282,7 +322,7 @@ const ChecklistManager = ({ user, onChecklistCompleted }) => {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="weekly">
+        <TabsContent value="weekly" className="space-y-6">
             <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-6">
                 <Card className="bg-gradient-to-r from-primary to-secondary border-0 shadow-lg">
                 <CardContent className="p-6 flex items-center justify-center text-white">
@@ -337,15 +377,69 @@ const ChecklistManager = ({ user, onChecklistCompleted }) => {
                         </motion.div>
                         ))}
                     </div>
-                    <div className="mt-6 space-y-2">
-                        <Label htmlFor="nextWeekGoal" className="text-md font-semibold text-primary/90">Minha meta principal para a próxima semana é:</Label>
+                </CardContent>
+            </Card>
+
+            <Card className="shadow-lg border-primary/20 bg-primary/5">
+                <CardHeader>
+                    <CardTitle className="text-primary flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5" />
+                        Checklist R.E.A.L. Semanal
+                    </CardTitle>
+                    <CardDescription>Reflexão sobre sua relação com a comida nesta semana.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="space-y-4">
+                        {realChecklist.map((item) => (
+                            <div key={item.id} className="p-4 bg-white rounded-lg shadow-sm border border-primary/10">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <span className="text-2xl">{item.icon}</span>
+                                    <p className="font-semibold text-primary">{item.id} - {item.text}</p>
+                                </div>
+                                <RadioGroup 
+                                    value={realAnswers[item.id]} 
+                                    onValueChange={(val) => handleRealToggle(item.id, val)} 
+                                    className="flex gap-6 ml-9"
+                                >
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="sim" id={`real-${item.id}-sim`} />
+                                        <Label htmlFor={`real-${item.id}-sim`} className="cursor-pointer">Sim</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="nao" id={`real-${item.id}-nao`} />
+                                        <Label htmlFor={`real-${item.id}-nao`} className="cursor-pointer">Não</Label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+                        ))}
+                    </div>
+
+                    {getPredominantLetter() && (
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="p-4 bg-primary text-primary-foreground rounded-lg shadow-md"
+                        >
+                            <h4 className="font-bold text-lg mb-2 flex items-center gap-2">
+                                <Award className="w-5 h-5" />
+                                Resumo da Semana: Letra {getPredominantLetter()}
+                            </h4>
+                            <p className="text-sm leading-relaxed">
+                                {getLetterFeedback(getPredominantLetter())}
+                            </p>
+                        </motion.div>
+                    )}
+
+                    <div className="pt-4 border-t border-primary/20">
+                        <Label htmlFor="closing-question" className="text-primary font-bold mb-2 block">
+                            Pergunta de Fechamento: O que você mais se orgulha de ter feito por você nesta semana?
+                        </Label>
                         <Textarea 
-                            id="nextWeekGoal"
-                            value={nextWeekGoal}
-                            onChange={handleNextWeekGoalChange}
-                            placeholder="Ex: Beber mais água, fazer exercícios 3x..."
-                            rows={3}
-                            className="focus:ring-primary"
+                            id="closing-question" 
+                            placeholder="Escreva aqui seu momento de orgulho..." 
+                            value={nextWeekGoal} 
+                            onChange={handleNextWeekGoalChange} 
+                            className="min-h-[100px] bg-white" 
                         />
                     </div>
                 </CardContent>

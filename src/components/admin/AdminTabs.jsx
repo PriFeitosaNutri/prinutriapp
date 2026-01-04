@@ -35,6 +35,14 @@ const AdminTabs = ({
       if (rewardsError) throw rewardsError;
       setWeeklyRewards(rewards || []);
 
+      const { data: violations, error: violationsError } = await supabase
+        .from('dcc_violations')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (violationsError) throw violationsError;
+      setDccViolations(violations || []);
+
     } catch (error) {
       console.error('Error loading DCC data:', error);
     }
@@ -84,13 +92,21 @@ const AdminTabs = ({
     }
   };
 
-  const handleClearViolations = () => {
-    setDccViolations([]);
-    toast({
-      title: "Violações Limpas! ✅",
-      description: "Todas as violações foram removidas.",
-      className: "bg-green-500 text-white"
-    });
+  const handleClearViolations = async () => {
+    try {
+      const { error } = await supabase.from('dcc_violations').delete().neq('id', 0);
+      if (error) throw error;
+      
+      setDccViolations([]);
+      toast({
+        title: "Violações Limpas! ✅",
+        description: "Todas as violações foram removidas.",
+        className: "bg-green-500 text-white"
+      });
+    } catch (error) {
+      console.error('Error clearing violations:', error);
+      toast({ title: "Erro ao limpar violações", variant: "destructive" });
+    }
   };
 
   const handleLinkChange = (newLink) => {

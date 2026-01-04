@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import DCCCommunity from '@/components/community/DCCCommunity';
+import { AlertTriangle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { motion } from 'framer-motion';
+import { getProfile } from '@/lib/database';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import DashboardMotivation from '@/components/dashboard/DashboardMotivation';
 import DashboardTabs from '@/components/dashboard/DashboardTabs';
@@ -15,6 +19,7 @@ const Dashboard = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState('water');
   const [showDCCCommunity, setShowDCCCommunity] = useState(false);
   const [userPhoto, setUserPhoto] = useState('');
+  const [subscriptionDaysLeft, setSubscriptionDaysLeft] = useState(null);
   const { toast } = useToast();
 
   const [notifications, setNotifications] = useState({ 
@@ -169,6 +174,18 @@ const Dashboard = ({ user, onLogout }) => {
     const savedPhoto = localStorage.getItem(`userPhoto_${normalizedUserEmail}_PriNutriApp`) || '';
     setUserPhoto(savedPhoto);
     
+    const checkSubscription = async () => {
+      const profile = await getProfile(user.id);
+      if (profile?.subscription_expires_at) {
+        const expiresAt = new Date(profile.subscription_expires_at);
+        const today = new Date();
+        const diffTime = expiresAt - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        setSubscriptionDaysLeft(diffDays);
+      }
+    };
+    checkSubscription();
+
     trackDCCInteraction('login');
     
     const checkUpdates = () => {
@@ -241,6 +258,11 @@ const Dashboard = ({ user, onLogout }) => {
     trackDCCInteraction('foodDiary');
   };
 
+  const handleRenewSubscription = () => {
+    const message = encodeURIComponent("Oi Nutri quero renovar minha assinatura no app 🤝");
+    window.open(`https://wa.me/5581992024545?text=${message}`, '_blank');
+  };
+
   const currentMainMotivation = activeTab === 'water' ? { text: "Cada gota conta para sua saúde!", img: hydrationData.motivationImage } : dailyMotivation;
 
   const handleTabChange = (value) => {
@@ -269,6 +291,36 @@ const Dashboard = ({ user, onLogout }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary/30 to-primary/30 p-4">
       <div className="max-w-6xl mx-auto">
+        {subscriptionDaysLeft !== null && subscriptionDaysLeft <= 7 && subscriptionDaysLeft > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`mb-6 p-4 rounded-lg border flex flex-col sm:flex-row items-center justify-between gap-4 ${
+              subscriptionDaysLeft <= 1 ? 'bg-red-50 border-red-200 text-red-800' : 
+              subscriptionDaysLeft <= 3 ? 'bg-orange-50 border-orange-200 text-orange-800' : 
+              'bg-yellow-50 border-yellow-200 text-yellow-800'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <AlertTriangle className={`w-6 h-6 ${subscriptionDaysLeft <= 1 ? 'text-red-600' : 'text-yellow-600'}`} />
+              <div>
+                <p className="font-bold">Sua assinatura vence em {subscriptionDaysLeft} {subscriptionDaysLeft === 1 ? 'dia' : 'dias'}!</p>
+                <p className="text-sm opacity-90">Não perca o acesso aos seus desafios e acompanhamento.</p>
+              </div>
+            </div>
+            <Button 
+              onClick={handleRenewSubscription}
+              className={`${
+                subscriptionDaysLeft <= 1 ? 'bg-red-600 hover:bg-red-700' : 
+                subscriptionDaysLeft <= 3 ? 'bg-orange-600 hover:bg-orange-700' : 
+                'bg-yellow-600 hover:bg-yellow-700'
+              } text-white font-bold`}
+            >
+              Renovar Agora
+            </Button>
+          </motion.div>
+        )}
+
         <DashboardHeader 
           user={user}
           currentTaskPin={currentTaskPin}

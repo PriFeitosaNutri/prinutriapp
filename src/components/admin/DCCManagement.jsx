@@ -102,8 +102,11 @@ const DCCManagement = ({
               <div className="space-y-2">
                 {dccViolations.map((violation, index) => (
                   <div key={index} className="text-sm p-2 bg-destructive/10 rounded-md">
-                    <p><span className="font-semibold">{violation.user}</span> - {violation.reason}</p>
-                    <p className="text-xs text-muted-foreground">{violation.postContent}</p>
+                    <p><span className="font-semibold">{violation.user_name}</span> - {violation.reason}</p>
+                    <p className="text-xs text-muted-foreground italic">"{violation.post_content}"</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {new Date(violation.created_at).toLocaleString('pt-BR')}
+                    </p>
                   </div>
                 ))}
                 <Button variant="destructive" size="sm" onClick={onClearViolations} className="w-full mt-4">
@@ -139,12 +142,21 @@ const DCCManagement = ({
                             value={reward.title}
                             onChange={(e) => onUpdateWeeklyReward(index, 'title', e.target.value)}
                           />
-                          <Textarea
-                            placeholder="Descrição da recompensa"
-                            value={reward.description}
-                            onChange={(e) => onUpdateWeeklyReward(index, 'description', e.target.value)}
-                            rows={3}
-                          />
+	                          <Textarea
+	                            placeholder="Descrição da recompensa"
+	                            value={reward.description}
+	                            onChange={(e) => onUpdateWeeklyReward(index, 'description', e.target.value)}
+	                            rows={3}
+	                          />
+	                          <div className="space-y-1">
+	                            <label className="text-xs font-medium">Duração (dias)</label>
+	                            <Input
+	                              type="number"
+	                              placeholder="Duração em dias"
+	                              value={reward.duration_days || ''}
+	                              onChange={(e) => onUpdateWeeklyReward(index, 'duration_days', e.target.value)}
+	                            />
+	                          </div>
                           <div className="flex items-center gap-2">
                             <Input 
                               id={`reward-image-upload-${index}`}
@@ -173,8 +185,11 @@ const DCCManagement = ({
                         </div>
                       ) : (
                         <div>
-                          <p className="font-bold">{reward.title}</p>
-                          <p className="text-sm text-muted-foreground">{reward.description}</p>
+	                          <p className="font-bold">{reward.title}</p>
+	                          <p className="text-sm text-muted-foreground">{reward.description}</p>
+	                          {reward.duration_days && (
+	                            <p className="text-xs font-medium text-primary mt-1">Duração: {reward.duration_days} dias</p>
+	                          )}
                           {reward.link && (
                             <a href={reward.link} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">
                               Ver recompensa
