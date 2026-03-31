@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShoppingCart, Loader2 } from 'lucide-react';
+import { ShoppingCart, Loader2, Trash2, RotateCcw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { updateProfile, getProfile } from '@/lib/database';
 
@@ -21,7 +23,11 @@ const ShoppingList = ({ user }) => {
       let parsedItems = [];
       if (Array.isArray(listData)) {
         if (listData.length > 0 && typeof listData[0] === 'object' && 'text' in listData[0]) {
-          parsedItems = listData.map((item, index) => ({ id: `item-${index}-${Date.now()}`, ...item }));
+          parsedItems = listData.map((item, index) => ({ 
+            id: `item-${index}-${Date.now()}`, 
+            ...item,
+            price: item.price || '' 
+          }));
         } else {
           parsedItems = listData
             .filter(item => typeof item === 'string' && item.trim() !== '')
@@ -29,6 +35,7 @@ const ShoppingList = ({ user }) => {
               id: `item-${index}-${Date.now()}`,
               text: itemText,
               checked: false,
+              price: ''
             }));
         }
       }
@@ -48,14 +55,9 @@ const ShoppingList = ({ user }) => {
     loadShoppingList();
   }, [loadShoppingList]);
 
-  const handleCheckItem = async (itemId) => {
-    const newItems = items.map(item =>
-      item.id === itemId ? { ...item, checked: !item.checked } : item
-    );
-    setItems(newItems);
-
+  const saveItems = async (newItems) => {
     try {
-      const itemsToSave = newItems.map(({ text, checked }) => ({ text, checked }));
+      const itemsToSave = newItems.map(({ text, checked, price }) => ({ text, checked, price }));
       await updateProfile(user.id, { shopping_list: itemsToSave });
     } catch (error) {
       toast({
@@ -67,6 +69,46 @@ const ShoppingList = ({ user }) => {
       await loadShoppingList();
     }
   };
+
+  const handleCheckItem = (itemId) => {
+    const newItems = items.map(item =>
+      item.id === itemId ? { ...item, checked: !item.checked } : item
+    );
+    setItems(newItems);
+    saveItems(newItems);
+  };
+
+  const handlePriceChange = (itemId, newPrice) => {
+    // Permitir apenas números e ponto/vírgula
+    const sanitizedPrice = newPrice.replace(/[^0-9.,]/g, '');
+    const newItems = items.map(item =>
+      item.id === itemId ? { ...item, price: sanitizedPrice } : item
+    );
+    setItems(newItems);
+    saveItems(newItems);
+  };
+
+  const handleClearPrice = (itemId) => {
+    const newItems = items.map(item =>
+      item.id === itemId ? { ...item, price: '' } : item
+    );
+    setItems(newItems);
+    saveItems(newItems);
+  };
+
+  const handleClearAllPrices = () => {
+    const newItems = items.map(item => ({ ...item, price: '' }));
+    setItems(newItems);
+    saveItems(newItems);
+  };
+
+  const totalPrice = useMemo(() => {
+    return items.reduce((sum, item) => {
+      const priceStr = (item.price || '').toString().replace(',', '.');
+      const price = parseFloat(priceStr) || 0;
+      return sum + price;
+    }, 0);
+  }, [items]);
 
   if (isLoading) {
     return (
@@ -83,31 +125,75 @@ const ShoppingList = ({ user }) => {
     <Card className="shadow-lg">
       <CardHeader>
         <CardTitle className="flex items-center text-primary"><ShoppingCart className="w-6 h-6 mr-2" />Lista de Compras</CardTitle>
-        <CardDescription>Sua lista de compras personalizada. Marque os itens comprados!</CardDescription>
+        <CardDescription>Sua lista de compras personalizada. Marque os itens comprados e adicione os preços!</CardDescription>
       </CardHeader>
       <CardContent>
         {items.length > 0 ? (
-          <ul className="space-y-3">
-            {items.map((item, index) => (
-              <motion.li 
-                key={item.id} 
-                initial={{ opacity: 0, x: -20 }} 
-                animate={{ opacity: 1, x: 0 }} 
-                transition={{ delay: index * 0.05 }} 
-                className={`flex items-center p-3 border rounded-lg transition-colors ${item.checked ? 'bg-green-100/70 border-green-300' : 'bg-primary/5 hover:bg-muted/50'}`}
+          <div className="space-y-6">
+            <ul className="space-y-3">
+              {items.map((item, index) => (
+                <motion.li 
+                  key={item.id} 
+                  initial={{ opacity: 0, x: -20 }} 
+                  animate={{ opacity: 1, x: 0 }} 
+                  transition={{ delay: index * 0.05 }} 
+                  className={`flex flex-col sm:flex-row sm:items-center p-3 border rounded-lg transition-colors gap-3 ${item.checked ? 'bg-green-100/70 border-green-300' : 'bg-primary/5 hover:bg-muted/50'}`}
+                >
+                  <div className="flex items-center flex-1 min-w-0">
+                    <Checkbox 
+                      id={item.id} 
+                      checked={item.checked} 
+                      onCheckedChange={() => handleCheckItem(item.id)} 
+                      className="mr-3 h-5 w-5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" 
+                    />
+                    <Label htmlFor={item.id} className={`flex-1 cursor-pointer truncate ${item.checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                      {item.text}
+                    </Label>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 sm:ml-auto">
+                    <div className="relative flex items-center w-28">
+                      <span className="absolute left-2 text-xs text-muted-foreground">R$</span>
+                      <Input
+                        type="text"
+                        placeholder="0,00"
+                        value={item.price}
+                        onChange={(e) => handlePriceChange(item.id, e.target.value)}
+                        className="h-8 pl-7 pr-2 text-sm bg-white"
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleClearPrice(item.id)}
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      title="Limpar preço"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </motion.li>
+              ))}
+            </ul>
+
+            <div className="mt-6 pt-4 border-t border-dashed flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Total:</span>
+                <span className="text-2xl font-bold text-primary">
+                  R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleClearAllPrices}
+                className="flex items-center gap-2 text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
               >
-                <Checkbox 
-                  id={item.id} 
-                  checked={item.checked} 
-                  onCheckedChange={() => handleCheckItem(item.id)} 
-                  className="mr-3 h-5 w-5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground" 
-                />
-                <Label htmlFor={item.id} className={`flex-1 cursor-pointer ${item.checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                  {item.text}
-                </Label>
-              </motion.li>
-            ))}
-          </ul>
+                <RotateCcw className="h-4 w-4" />
+                Limpar Valores
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="text-center py-10 text-muted-foreground">
             <img src="https://storage.googleapis.com/hostinger-horizons-assets-prod/b9d04e3e-a936-445c-b4df-9d7bf5f8a549/d1234b79f0eeaa4720caa0ccb90c77d7.png" alt="Figurinha de Compras" className="w-24 h-24 mx-auto mb-4 opacity-70" />
