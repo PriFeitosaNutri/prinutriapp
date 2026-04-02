@@ -10,6 +10,8 @@ import ShoppingList from '@/components/ShoppingList';
 import MealPlan from '@/components/MealPlan';
 import PriNutriFlix from '@/components/PriNutriFlix';
 import ContactNutri from '@/components/ContactNutri';
+import PhysicalActivityLibrary from '@/components/PhysicalActivityLibrary';
+import { Dumbbell } from 'lucide-react';
 
 const DashboardTabs = ({ 
   handleTabChange, 
@@ -43,6 +45,9 @@ const DashboardTabs = ({
           <TabsTrigger value="shopping" className="relative flex-shrink-0 whitespace-nowrap">
             <ShoppingCart className="w-4 h-4 mr-1 inline-block"/>Compras 
             <TabIndicator hasNotification={notifications.shopping} />
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="relative flex-shrink-0 whitespace-nowrap">
+            <Dumbbell className="w-4 h-4 mr-1 inline-block"/>Atividade Física
           </TabsTrigger>
           <TabsTrigger value="materials" className="relative flex-shrink-0 whitespace-nowrap">
             <Play className="w-4 h-4 mr-1 inline-block"/>PriNutriFlix 
@@ -80,6 +85,18 @@ const DashboardTabs = ({
       </TabsContent>
       <TabsContent value="plan">
         <MealPlan user={user} />
+      </TabsContent>
+      <TabsContent value="activity">
+        <PhysicalActivityLibrary 
+          user={user} 
+          onExerciseComplete={(ex) => {
+            toast({
+              title: "Exercício Concluído! 💪",
+              description: `Parabéns por finalizar: ${ex.title}. Isso conta para sua meta diária!`,
+              className: "bg-primary text-primary-foreground"
+            });
+          }}
+        />
       </TabsContent>
       <TabsContent value="materials">
         <PriNutriFlix user={user} />
