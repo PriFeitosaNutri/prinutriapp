@@ -171,8 +171,27 @@ const Dashboard = ({ user, onLogout }) => {
 
     setOrgulhoLevel(parseInt(localStorage.getItem(`orgulhoLevel_${normalizedUserEmail}_PriNutriApp`)) || 0);
     
-    const savedPhoto = localStorage.getItem(`userPhoto_${normalizedUserEmail}_PriNutriApp`) || '';
-    setUserPhoto(savedPhoto);
+    // Carregar foto de perfil do Supabase
+    const loadUserPhoto = async () => {
+      try {
+        const profile = await getProfile(user.id);
+        if (profile?.photo_url) {
+          setUserPhoto(profile.photo_url);
+          // Sincronizar com localStorage para uso offline
+          localStorage.setItem(`userPhoto_${normalizedUserEmail}_PriNutriApp`, profile.photo_url);
+        } else {
+          // Se não houver foto no Supabase, usar localStorage como fallback
+          const savedPhoto = localStorage.getItem(`userPhoto_${normalizedUserEmail}_PriNutriApp`) || '';
+          setUserPhoto(savedPhoto);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar foto de perfil:', error);
+        // Fallback para localStorage em caso de erro
+        const savedPhoto = localStorage.getItem(`userPhoto_${normalizedUserEmail}_PriNutriApp`) || '';
+        setUserPhoto(savedPhoto);
+      }
+    };
+    loadUserPhoto();
     
     const checkSubscription = async () => {
       const profile = await getProfile(user.id);
