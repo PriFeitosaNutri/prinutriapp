@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import LoginForm from '@/components/LoginForm';
+import PlansScreen from '@/components/PlansScreen';
+import MercadoPagoCheckout from '@/components/MercadoPagoCheckout';
 import WelcomeScreen from '@/components/WelcomeScreen';
 import AnamnesisForm from '@/components/AnamnesisForm';
 import SchedulingScreen from '@/components/SchedulingScreen';
@@ -17,6 +19,7 @@ import { Download, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppScreenLogic } from '@/hooks/useAppScreenLogic';
 import { updateProfile as dbUpdateProfile } from '@/lib/database';
+import { calculateSubscriptionExpiry } from '@/lib/mercadoPagoConfig';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -54,20 +57,78 @@ function App() {
   
   const { toast } = useToast();
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   useEffect(() => {
     document.title = "PriNutriApp";
     const beforeInstallPromptHandler = (e) => {
       e.preventDefault();
       setDeferredInstallPrompt(e);
-    };    window.addEventListener("beforeinstallprompt", beforeInstallPromptHandler);       return () => window.removeEventListener("beforeinstallprompt", beforeInstallPromptHandler);
-  }, []);
+    };
+    window.addEventListener("beforeinstallprompt", beforeInstallPromptHandler);
+    
+    // Verifica se voltou do pagamento do Mercado Pago
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment_status');
+    const planId = params.get('plan_id');
+    
+    if (paymentStatus === 'approved' && planId && profile) {
+      handlePaymentSuccess(planId);
+      // Limpa a URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    
+    return () => window.removeEventListener("beforeinstallprompt", beforeInstallPromptHandler);
+  }, [profile]);
 
   const handleInstallClick = async () => {
     if (deferredInstallPrompt) {
       deferredInstallPrompt.prompt();
-      const { outcome } = await deferredInstallPrompt.userChoice;      toast({ title: outcome === 'accepted' ? "Instalado! 🎉" : "Instalação cancelada" });      setDeferredInstallPrompt(null);
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      toast({ title: outcome === 'accepted' ? "Instalado! 🎉" : "Instalação cancelada" });
+      setDeferredInstallPrompt(null);
     }
+  };
+
+  const handlePlanSelected = (plan) => {
+    setSelectedPlan(plan);
+  };
+
+  const handlePaymentSuccess = async (planId) => {
+    try {
+      setProcessingPayment(true);
+      const expiryDate = calculateSubscriptionExpiry(planId);
+      const planType = planId.includes('solo') ? 'solo' : 'acompanhado';
+      
+      await dbUpdateProfile(profile.id, {
+        plan_type: planType,
+        subscription_expires_at: expiryDate.toISOString(),
+        payment_method: 'mercado_pago',
+        has_paid: true
+      });
+      
+      await updateProfile(profile.id);
+      setSelectedPlan(null);
+      
+      toast({
+        title: "Pagamento confirmado! 🎉",
+        description: "Bem-vindo ao PriNutriApp. Vamos começar com algumas perguntas importantes."
+      });
+    } catch (error) {
+      console.error('Erro ao processar pagamento:', error);
+      toast({
+        title: "Erro ao processar pagamento",
+        description: "Por favor, entre em contato com o suporte.",
+        variant: "destructive"
+      });
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
+  const handleCancelPayment = () => {
+    setSelectedPlan(null);
   };
 
   const Footer = () => (
@@ -133,6 +194,19 @@ function App() {
     const handleSchedulingComplete = () => updateProfileField({ has_scheduled_initial_chat: true });
     const handleAnamnesisComplete = () => updateProfileField({ has_completed_anamnesis: true });
 
+    // Se o usuário está no fluxo de pagamento, mostra a tela de planos
+    if (selectedPlan) {
+      return (
+        <MercadoPagoCheckout
+          plan={selectedPlan}
+          user={profile}
+          onPaymentSuccess={handlePaymentSuccess}
+          onCancel={handleCancelPayment}
+          loading={processingPayment}
+        />
+      );
+    }
+
     if (isAdmin) {
       return showAdminNewsScreen ? (
         <AdminNewsScreen user={profile} onClose={handleCloseAdminNewsScreen} />
@@ -142,23 +216,28 @@ function App() {
     }
     
     // FLUXO DA PACIENTE
-    // 1. Tela de boas-vindas
-    if (!profile.has_seen_welcome) {
-      return <WelcomeScreen user={profile} onContinue={handleWelcomeComplete} />;
+    // 0. Escolha de plano (novo fluxo)
+    if (!profile.has_paid) {
+      return <PlansScreen user={profile} onPlanSelected={handlePlanSelected} loading={processingPayment} />;
     }
     
-    // 2. Agendamento inicial
-    if (!profile.has_scheduled_initial_chat) {
-      return <SchedulingScreen user={profile} onScheduled={handleSchedulingComplete} onCancel={handleLogout} />;
-    }
-    
-    // 3. Anamnese
+    // 1. Anamnese (agora vem antes das boas-vindas)
     if (!profile.has_completed_anamnesis) {
       return <AnamnesisForm user={profile} onComplete={handleAnamnesisComplete} />;
     }
     
-    // 4. Aguardando aprovação da nutricionista
-    if (!profile.is_approved) {
+    // 2. Boas-vindas (apenas para primeiro acesso)
+    if (!profile.has_seen_welcome) {
+      return <WelcomeScreen user={profile} onContinue={handleWelcomeComplete} />;
+    }
+    
+    // 3. Agendamento inicial (apenas para plano acompanhado)
+    if (profile.plan_type === 'acompanhado' && !profile.has_scheduled_initial_chat) {
+      return <SchedulingScreen user={profile} onScheduled={handleSchedulingComplete} onCancel={handleLogout} />;
+    }
+    
+    // 4. Aguardando aprovação da nutricionista (apenas para plano acompanhado)
+    if (profile.plan_type === 'acompanhado' && !profile.is_approved) {
       return <PostSchedulingWaitScreen user={profile} onLogout={handleLogout} />;
     }
     

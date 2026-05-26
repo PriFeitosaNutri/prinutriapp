@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Users, Calendar, Calculator, 
-  TrendingUp, Trophy, ExternalLink
+  TrendingUp, Trophy, ExternalLink, Unlock
 } from 'lucide-react';
 import PatientList from '@/components/admin/PatientList';
 import AppointmentManager from '@/components/admin/AppointmentManager';
@@ -10,6 +10,7 @@ import NutritionalCalculators from '@/components/admin/NutritionalCalculators';
 import AdminOverview from '@/components/admin/AdminOverview';
 import DCCManagement from '@/components/admin/DCCManagement';
 import ConsultationLinkManager from '@/components/admin/ConsultationLinkManager';
+import DirectAccessManager from '@/components/admin/DirectAccessManager';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -23,6 +24,7 @@ const AdminTabs = ({
   const [weeklyRewards, setWeeklyRewards] = useState([]);
   const [dccViolations, setDccViolations] = useState([]);
   const [consultationLink, setConsultationLink] = useState('');
+  const [showDirectAccess, setShowDirectAccess] = useState(false);
   const { toast } = useToast();
 
   const loadDCCData = useCallback(async () => {
@@ -138,7 +140,7 @@ const AdminTabs = ({
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-      <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
+      <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7">
         <TabsTrigger value="overview" className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4" />
           Visão Geral
@@ -162,6 +164,10 @@ const AdminTabs = ({
         <TabsTrigger value="consultation" className="flex items-center gap-2">
           <ExternalLink className="w-4 h-4" />
           Consulta
+        </TabsTrigger>
+        <TabsTrigger value="access" className="flex items-center gap-2">
+          <Unlock className="w-4 h-4" />
+          Acesso Direto
         </TabsTrigger>
       </TabsList>
 
@@ -204,6 +210,10 @@ const AdminTabs = ({
           onLinkChange={handleLinkChange}
           onSaveLink={handleSaveLink}
         />
+      </TabsContent>
+
+      <TabsContent value="access">
+        <DirectAccessManager onClose={() => setShowDirectAccess(false)} />
       </TabsContent>
     </Tabs>
   );
